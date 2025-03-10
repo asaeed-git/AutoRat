@@ -6,56 +6,64 @@ import requests
 from bs4 import BeautifulSoup
 from datetime import datetime
 
-# Function to fetch a long unseen passage
-def get_random_comprehension():
-    response = requests.get("https://en.wikipedia.org/wiki/Special:Random")
-    soup = BeautifulSoup(response.text, 'html.parser')
-    paragraphs = soup.find_all('p')
-    
-    # Combine paragraphs until the passage length is long enough
-    passage = ""
-    for para in paragraphs:
-        text = para.text.strip()
-        if text:
-            passage += text + " "
-        if len(passage.split()) > 250:  # Ensure passage has 250+ words
-            break
-    
-    # Clean the passage
-    passage = passage.replace('\n', ' ').strip()
-    return passage
+# Predefined passages from novels, newspapers, literature
+passages = [
+    {
+        "text": "It was a bright cold day in April, and the clocks were striking thirteen. Winston Smith, his chin nuzzled...",
+        "questions": [
+            {
+                "question": "What is the mood conveyed in the opening line?",
+                "options": ["Optimistic", "Depressing", "Romantic", "Indifferent"],
+                "answer": "Depressing"
+            },
+            {
+                "question": "What does 'clocks striking thirteen' imply?",
+                "options": ["Time is broken", "Military time", "Bad omen", "New Year"],
+                "answer": "Military time"
+            },
+            # 8 more questions...
+        ]
+    },
+    {
+        "text": "The sun sank slowly, casting a warm glow on the horizon. The birds returned to their nests as the evening...",
+        "questions": [
+            {
+                "question": "What is the setting of the passage?",
+                "options": ["Morning", "Evening", "Afternoon", "Night"],
+                "answer": "Evening"
+            },
+            {
+                "question": "The tone of the passage is:",
+                "options": ["Melancholic", "Peaceful", "Dramatic", "Humorous"],
+                "answer": "Peaceful"
+            },
+            # 8 more questions...
+        ]
+    }
+]
 
-# Function to generate 10 comprehension questions
-def generate_questions(passage):
-    questions = [
-        "What is the main theme of the passage?",
-        "Which of the following best summarizes the passage?",
-        "What can be inferred from the passage?",
-        "What is the tone of the passage?",
-        "According to the passage, which statement is true?",
-        "Which of the following is a suitable title for the passage?",
-        "What is the primary purpose of the author?",
-        "Find the meaning of the word ‘____’ from the passage.",
-        "Which of the following best describes the author's attitude?",
-        "Identify the correct interpretation of the last paragraph."
-    ]
-    return questions
+# Select a random passage
+selected_passage = random.choice(passages)
 
 # Streamlit UI
 st.title("CUET English Reading Ability Mock Test")
 st.write("Read the passage carefully and answer the following questions:")
 
-# Fetch long unseen passage
-passage = get_random_comprehension()
-st.text_area("Passage:", value=passage, height=350)
+# Display the passage
+st.text_area("Passage:", value=selected_passage['text'], height=350)
 
-# Generate and display 10 questions
-questions = generate_questions(passage)
-answers = []
+# Generate and display 10 MCQs
+user_answers = []
+score = 0
 
-for i, question in enumerate(questions):
-    answer = st.text_input(f"{i+1}. {question}", key=f"answer_{i}")
-    answers.append(answer)
+for i, q in enumerate(selected_passage['questions']):
+    st.write(f"Q{i+1}. {q['question']}")
+    user_answer = st.radio(f"Choose one:", q['options'], key=f"answer_{i}")
+    user_answers.append(user_answer)
+    
+    # Calculate score
+    if user_answer == q['answer']:
+        score += 1
 
 # Countdown Timer
 if st.button("Start Timer"):
@@ -81,11 +89,16 @@ def generate_pdf():
     pdf.cell(200, 10, txt="CUET English Mock Test Report", ln=True, align='C')
     
     # Add the passage
-    pdf.multi_cell(0, 10, txt=f"Passage:\n\n{passage}\n\n")
+    pdf.multi_cell(0, 10, txt=f"Passage:\n\n{selected_passage['text']}\n\n")
     
-    # Add questions and answers
-    for i, question in enumerate(questions):
-        pdf.multi_cell(0, 10, txt=f"Q{i+1}. {question}\nYour Answer: {answers[i]}\n\n")
+    # Add questions, user answers, and correct answers
+    for i, q in enumerate(selected_passage['questions']):
+        pdf.multi_cell(0, 10, txt=f"Q{i+1}. {q['question']}")
+        pdf.multi_cell(0, 10, txt=f"Your Answer: {user_answers[i]}")
+        pdf.multi_cell(0, 10, txt=f"Correct Answer: {q['answer']}\n\n")
+    
+    # Add Score
+    pdf.multi_cell(0, 10, txt=f"Your Score: {score}/10")
     
     # Save the PDF
     filename = f"CUET_MockTest_{datetime.now().strftime('%Y%m%d_%H%M%S')}.pdf"
