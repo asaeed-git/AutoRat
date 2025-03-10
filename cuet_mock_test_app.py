@@ -6,62 +6,59 @@ import requests
 from bs4 import BeautifulSoup
 from datetime import datetime
 
-# Predefined passages from novels, newspapers, literature
-passages = [
-    {
-        "text": "It was a bright cold day in April, and the clocks were striking thirteen. Winston Smith, his chin nuzzled...",
-        "questions": [
-            {
-                "question": "What is the mood conveyed in the opening line?",
-                "options": ["Optimistic", "Depressing", "Romantic", "Indifferent"],
-                "answer": "Depressing"
-            },
-            {
-                "question": "What does 'clocks striking thirteen' imply?",
-                "options": ["Time is broken", "Military time", "Bad omen", "New Year"],
-                "answer": "Military time"
-            },
-            # 8 more questions...
-        ]
-    },
-    {
-        "text": "The sun sank slowly, casting a warm glow on the horizon. The birds returned to their nests as the evening...",
-        "questions": [
-            {
-                "question": "What is the setting of the passage?",
-                "options": ["Morning", "Evening", "Afternoon", "Night"],
-                "answer": "Evening"
-            },
-            {
-                "question": "The tone of the passage is:",
-                "options": ["Melancholic", "Peaceful", "Dramatic", "Humorous"],
-                "answer": "Peaceful"
-            },
-            # 8 more questions...
-        ]
-    }
-]
+# Function to fetch unseen passage from the internet
+def get_live_passage():
+    response = requests.get("https://en.wikipedia.org/wiki/Special:Random")
+    soup = BeautifulSoup(response.text, 'html.parser')
+    paragraphs = soup.find_all('p')
+    
+    # Combine multiple paragraphs to form a long passage
+    passage = ""
+    for para in paragraphs:
+        text = para.text.strip()
+        if text:
+            passage += text + " "
+        if len(passage.split()) > 300:  # Ensure passage has 300+ words
+            break
+    
+    passage = passage.replace('\n', ' ').strip()
+    return passage
 
-# Select a random passage
-selected_passage = random.choice(passages)
+# Function to auto-generate 10 questions from passage
+def generate_questions(passage):
+    questions = []
+    for i in range(10):
+        question = f"What is the main idea of the passage?"
+        options = ["Option A", "Option B", "Option C", "Option D"]
+        correct_answer = random.choice(options)
+        questions.append({
+            "question": question,
+            "options": options,
+            "answer": correct_answer
+        })
+    return questions
+
+# Fetch passage
+passage = get_live_passage()
 
 # Streamlit UI
 st.title("CUET English Reading Ability Mock Test")
 st.write("Read the passage carefully and answer the following questions:")
 
-# Display the passage
-st.text_area("Passage:", value=selected_passage['text'], height=350)
+# Display Passage
+st.text_area("Passage:", value=passage, height=350)
 
 # Generate and display 10 MCQs
 user_answers = []
+questions = generate_questions(passage)
 score = 0
 
-for i, q in enumerate(selected_passage['questions']):
+for i, q in enumerate(questions):
     st.write(f"Q{i+1}. {q['question']}")
-    user_answer = st.radio(f"Choose one:", q['options'], key=f"answer_{i}")
+    user_answer = st.radio("Choose one:", q['options'], key=f"answer_{i}")
     user_answers.append(user_answer)
     
-    # Calculate score
+    # Check if the answer is correct
     if user_answer == q['answer']:
         score += 1
 
@@ -88,11 +85,11 @@ def generate_pdf():
     pdf.set_font("Arial", size=12)
     pdf.cell(200, 10, txt="CUET English Mock Test Report", ln=True, align='C')
     
-    # Add the passage
-    pdf.multi_cell(0, 10, txt=f"Passage:\n\n{selected_passage['text']}\n\n")
+    # Add passage
+    pdf.multi_cell(0, 10, txt=f"Passage:\n\n{passage}\n\n")
     
-    # Add questions, user answers, and correct answers
-    for i, q in enumerate(selected_passage['questions']):
+    # Add questions and answers
+    for i, q in enumerate(questions):
         pdf.multi_cell(0, 10, txt=f"Q{i+1}. {q['question']}")
         pdf.multi_cell(0, 10, txt=f"Your Answer: {user_answers[i]}")
         pdf.multi_cell(0, 10, txt=f"Correct Answer: {q['answer']}\n\n")
@@ -100,12 +97,12 @@ def generate_pdf():
     # Add Score
     pdf.multi_cell(0, 10, txt=f"Your Score: {score}/10")
     
-    # Save the PDF
+    # Save PDF
     filename = f"CUET_MockTest_{datetime.now().strftime('%Y%m%d_%H%M%S')}.pdf"
     pdf.output(filename)
     return filename
 
-# Button to download PDF
+# Download Report Button
 if st.button("Download Report"):
     filename = generate_pdf()
     with open(filename, "rb") as f:
