@@ -6,42 +6,55 @@ import requests
 from bs4 import BeautifulSoup
 from datetime import datetime
 
-# Function to fetch a long random passage from Wikipedia
+# Function to fetch a long unseen passage
 def get_random_comprehension():
     response = requests.get("https://en.wikipedia.org/wiki/Special:Random")
     soup = BeautifulSoup(response.text, 'html.parser')
     paragraphs = soup.find_all('p')
     
-    # Combine multiple paragraphs to make a longer passage
+    # Combine paragraphs until the passage length is long enough
     passage = ""
     for para in paragraphs:
-        passage += para.text.strip() + " "
-        if len(passage) > 1200:  # Ensure the passage is sufficiently long
+        text = para.text.strip()
+        if text:
+            passage += text + " "
+        if len(passage.split()) > 250:  # Ensure passage has 250+ words
             break
+    
+    # Clean the passage
+    passage = passage.replace('\n', ' ').strip()
     return passage
 
-# Function to generate 10 random questions
+# Function to generate 10 comprehension questions
 def generate_questions(passage):
-    questions = []
-    for i in range(10):
-        questions.append(f"Q{i+1}. What is the main idea of the passage?")
+    questions = [
+        "What is the main theme of the passage?",
+        "Which of the following best summarizes the passage?",
+        "What can be inferred from the passage?",
+        "What is the tone of the passage?",
+        "According to the passage, which statement is true?",
+        "Which of the following is a suitable title for the passage?",
+        "What is the primary purpose of the author?",
+        "Find the meaning of the word ‘____’ from the passage.",
+        "Which of the following best describes the author's attitude?",
+        "Identify the correct interpretation of the last paragraph."
+    ]
     return questions
 
 # Streamlit UI
-st.title("CUET English Mock Test")
-st.write("Read the passage carefully and answer the questions below:")
+st.title("CUET English Reading Ability Mock Test")
+st.write("Read the passage carefully and answer the following questions:")
 
-# Fetch a longer passage
+# Fetch long unseen passage
 passage = get_random_comprehension()
-st.text_area("Passage:", value=passage, height=300)
+st.text_area("Passage:", value=passage, height=350)
 
-# Generate 10 questions
+# Generate and display 10 questions
 questions = generate_questions(passage)
 answers = []
 
-# Display questions and text input for answers
 for i, question in enumerate(questions):
-    answer = st.text_input(question, key=f"answer_{i}")
+    answer = st.text_input(f"{i+1}. {question}", key=f"answer_{i}")
     answers.append(answer)
 
 # Countdown Timer
@@ -53,22 +66,28 @@ if 'start_time' in st.session_state:
     remaining_time = 1200 - elapsed_time
     minutes = int(remaining_time // 60)
     seconds = int(remaining_time % 60)
-    st.write(f"Time remaining: {minutes} minutes {seconds} seconds")
-    if remaining_time <= 0:
+    
+    if remaining_time > 0:
+        st.write(f"Time remaining: {minutes} minutes {seconds} seconds")
+    else:
         st.warning("Time's up!")
         st.session_state.start_time = None
 
-# Generate PDF Function
+# Function to generate PDF report
 def generate_pdf():
     pdf = FPDF()
     pdf.add_page()
     pdf.set_font("Arial", size=12)
     pdf.cell(200, 10, txt="CUET English Mock Test Report", ln=True, align='C')
     
-    pdf.multi_cell(0, 10, txt=f"Passage:\n{passage}")
-    for i, question in enumerate(questions):
-        pdf.multi_cell(0, 10, txt=f"{question}\nYour Answer: {answers[i]}\n\n")
+    # Add the passage
+    pdf.multi_cell(0, 10, txt=f"Passage:\n\n{passage}\n\n")
     
+    # Add questions and answers
+    for i, question in enumerate(questions):
+        pdf.multi_cell(0, 10, txt=f"Q{i+1}. {question}\nYour Answer: {answers[i]}\n\n")
+    
+    # Save the PDF
     filename = f"CUET_MockTest_{datetime.now().strftime('%Y%m%d_%H%M%S')}.pdf"
     pdf.output(filename)
     return filename
