@@ -6,120 +6,79 @@ import requests
 from bs4 import BeautifulSoup
 from datetime import datetime
 
-# Function to fetch random comprehension from Wikipedia
+# Function to fetch a long random passage from Wikipedia
 def get_random_comprehension():
     response = requests.get("https://en.wikipedia.org/wiki/Special:Random")
     soup = BeautifulSoup(response.text, 'html.parser')
     paragraphs = soup.find_all('p')
     
-    # Extract the first non-empty paragraph
+    # Combine multiple paragraphs to make a longer passage
     passage = ""
     for para in paragraphs:
-        if len(para.text.strip()) > 100:
-            passage = para.text.strip()
+        passage += para.text.strip() + " "
+        if len(passage) > 1200:  # Ensure the passage is sufficiently long
             break
-    
-    # Generate random questions
-    questions = [
-        {
-            "question": f"What is the main topic of the passage?",
-            "options": [
-                "History of the event",
-                "Scientific discovery",
-                "Person's biography",
-                "Geographic location"
-            ],
-            "answer": "Person's biography" if "born" in passage.lower() else "Scientific discovery"
-        },
-        {
-            "question": f"Which of the following is most likely true about the passage?",
-            "options": [
-                "It describes a past event.",
-                "It explains a scientific concept.",
-                "It narrates a person's life.",
-                "It discusses a place's importance."
-            ],
-            "answer": "It narrates a person's life." if "born" in passage.lower() else "It explains a scientific concept."
-        }
-    ]
-    
-    return {"passage": passage, "questions": questions}
+    return passage
 
-# PDF Generation Function
-class PDF(FPDF):
-    def header(self):
-        self.set_font('Arial', 'B', 16)
-        self.cell(0, 10, 'CUET English Mock Test Report', ln=True, align='C')
+# Function to generate 10 random questions
+def generate_questions(passage):
+    questions = []
+    for i in range(10):
+        questions.append(f"Q{i+1}. What is the main idea of the passage?")
+    return questions
 
-    def add_test_details(self, passage, user_answers, correct_answers):
-        self.set_font('Arial', '', 12)
-        self.ln(10)
-        self.multi_cell(0, 10, f"Passage:\n{passage}\n")
-        
-        for i, (q, u_ans, c_ans) in enumerate(zip(passage["questions"], user_answers, correct_answers), start=1):
-            self.ln(5)
-            self.cell(0, 10, f"Q{i}. {q['question']}")
-            self.ln(5)
-            self.cell(0, 10, f"Your Answer: {u_ans}")
-            self.ln(5)
-            self.cell(0, 10, f"Correct Answer: {c_ans}")
-            self.ln(10)
-
-# Streamlit Interface
+# Streamlit UI
 st.title("CUET English Mock Test")
-st.write("Test your comprehension skills with a daily mock test!")
+st.write("Read the passage carefully and answer the questions below:")
 
-# Timer
-test_time = 20 * 60  # 20 minutes
-if 'start_time' not in st.session_state:
-    st.session_state['start_time'] = time.time()
+# Fetch a longer passage
+passage = get_random_comprehension()
+st.text_area("Passage:", value=passage, height=300)
 
-time_left = test_time - (time.time() - st.session_state['start_time'])
+# Generate 10 questions
+questions = generate_questions(passage)
+answers = []
 
-if time_left <= 0:
-    st.warning("⏰ Time's up!")
-    st.session_state['time_up'] = True
-else:
-    mins, secs = divmod(int(time_left), 60)
-    st.write(f"⏳ **Time Remaining:** {mins} min {secs} sec")
+# Display questions and text input for answers
+for i, question in enumerate(questions):
+    answer = st.text_input(question, key=f"answer_{i}")
+    answers.append(answer)
 
-# Mock Test Generation
-if 'mock_test' not in st.session_state:
-    st.session_state['mock_test'] = get_random_comprehension()
+# Countdown Timer
+if st.button("Start Timer"):
+    st.session_state.start_time = time.time()
 
-passage_data = st.session_state['mock_test']
-st.write("### Passage:")
-st.write(passage_data["passage"])
+if 'start_time' in st.session_state:
+    elapsed_time = time.time() - st.session_state.start_time
+    remaining_time = 1200 - elapsed_time
+    minutes = int(remaining_time // 60)
+    seconds = int(remaining_time % 60)
+    st.write(f"Time remaining: {minutes} minutes {seconds} seconds")
+    if remaining_time <= 0:
+        st.warning("Time's up!")
+        st.session_state.start_time = None
 
-# Questions
-user_answers = []
-for i, q in enumerate(passage_data["questions"]):
-    user_answer = st.radio(f"Q{i+1}. {q['question']}", q['options'], key=f"q{i}")
-    user_answers.append(user_answer)
-
-# Submit Button
-if st.button("Submit Test"):
-    correct_answers = [q["answer"] for q in passage_data["questions"]]
-    score = sum([1 if user_ans == correct_ans else 0 for user_ans, correct_ans in zip(user_answers, correct_answers)])
-
-    # Display Results
-    st.success(f"✅ Test completed! You scored **{score}/{len(correct_answers)}**")
-
-    # Generate PDF with Date in File Name
-    pdf = PDF()
+# Generate PDF Function
+def generate_pdf():
+    pdf = FPDF()
     pdf.add_page()
-    pdf.add_test_details(passage_data, user_answers, correct_answers)
+    pdf.set_font("Arial", size=12)
+    pdf.cell(200, 10, txt="CUET English Mock Test Report", ln=True, align='C')
     
-    # Generate a date-stamped file name
-    today = datetime.now().strftime('%m-%d-%Y')
-    pdf_file = f"{today}_Mock_Test_Report.pdf"
-    pdf.output(pdf_file)
+    pdf.multi_cell(0, 10, txt=f"Passage:\n{passage}")
+    for i, question in enumerate(questions):
+        pdf.multi_cell(0, 10, txt=f"{question}\nYour Answer: {answers[i]}\n\n")
+    
+    filename = f"CUET_MockTest_{datetime.now().strftime('%Y%m%d_%H%M%S')}.pdf"
+    pdf.output(filename)
+    return filename
 
-    # Download Link
-    with open(pdf_file, "rb") as file:
-        st.download_button("📥 Download PDF Report", file, file_name=pdf_file)
+# Button to download PDF
+if st.button("Download Report"):
+    filename = generate_pdf()
+    with open(filename, "rb") as f:
+        st.download_button("Download your report", f, file_name=filename)
 
 # Reset Button
 if st.button("Reset Test"):
-    st.session_state.clear()
-    st.rerun()
+    st.experimental_rerun()
