@@ -2,29 +2,48 @@ import streamlit as st
 import random
 import time
 from fpdf import FPDF
+import requests
+from bs4 import BeautifulSoup
+from datetime import datetime
 
-# Sample passages and questions
-passages = [
-    {
-        "passage": "The industrial revolution, which began in the 18th century, significantly changed the landscape of labor and economy. Factories emerged as centers of production, introducing mechanized processes that increased efficiency but often led to poor working conditions.",
-        "questions": [
-            {"question": "When did the industrial revolution begin?", "options": ["17th century", "18th century", "19th century", "20th century"], "answer": "18th century"},
-            {"question": "What was a major outcome of the industrial revolution?", "options": ["Increased agricultural productivity", "Emergence of factories", "Decline in trade", "Rise of monarchy"], "answer": "Emergence of factories"},
-        ]
-    },
-    {
-        "passage": "Photosynthesis is the process by which green plants use sunlight to synthesize nutrients from carbon dioxide and water. This crucial process helps maintain the balance of oxygen in the Earth's atmosphere.",
-        "questions": [
-            {"question": "What do plants use in photosynthesis?", "options": ["Oxygen and water", "Sunlight and nitrogen", "Carbon dioxide and water", "Hydrogen and carbon"], "answer": "Carbon dioxide and water"},
-            {"question": "What is the primary purpose of photosynthesis?", "options": ["To produce oxygen", "To synthesize nutrients", "To absorb heat", "To release carbon dioxide"], "answer": "To synthesize nutrients"},
-        ]
-    }
-]
-
-# Function to generate a random comprehension and questions
-def generate_mock_test():
-    selected_passage = random.choice(passages)
-    return selected_passage
+# Function to fetch random comprehension from Wikipedia
+def get_random_comprehension():
+    response = requests.get("https://en.wikipedia.org/wiki/Special:Random")
+    soup = BeautifulSoup(response.text, 'html.parser')
+    paragraphs = soup.find_all('p')
+    
+    # Extract the first non-empty paragraph
+    passage = ""
+    for para in paragraphs:
+        if len(para.text.strip()) > 100:
+            passage = para.text.strip()
+            break
+    
+    # Generate random questions
+    questions = [
+        {
+            "question": f"What is the main topic of the passage?",
+            "options": [
+                "History of the event",
+                "Scientific discovery",
+                "Person's biography",
+                "Geographic location"
+            ],
+            "answer": "Person's biography" if "born" in passage.lower() else "Scientific discovery"
+        },
+        {
+            "question": f"Which of the following is most likely true about the passage?",
+            "options": [
+                "It describes a past event.",
+                "It explains a scientific concept.",
+                "It narrates a person's life.",
+                "It discusses a place's importance."
+            ],
+            "answer": "It narrates a person's life." if "born" in passage.lower() else "It explains a scientific concept."
+        }
+    ]
+    
+    return {"passage": passage, "questions": questions}
 
 # PDF Generation Function
 class PDF(FPDF):
@@ -66,7 +85,7 @@ else:
 
 # Mock Test Generation
 if 'mock_test' not in st.session_state:
-    st.session_state['mock_test'] = generate_mock_test()
+    st.session_state['mock_test'] = get_random_comprehension()
 
 passage_data = st.session_state['mock_test']
 st.write("### Passage:")
@@ -86,11 +105,14 @@ if st.button("Submit Test"):
     # Display Results
     st.success(f"✅ Test completed! You scored **{score}/{len(correct_answers)}**")
 
-    # Generate PDF
+    # Generate PDF with Date in File Name
     pdf = PDF()
     pdf.add_page()
     pdf.add_test_details(passage_data, user_answers, correct_answers)
-    pdf_file = "Mock_Test_Report.pdf"
+    
+    # Generate a date-stamped file name
+    today = datetime.now().strftime('%m-%d-%Y')
+    pdf_file = f"{today}_Mock_Test_Report.pdf"
     pdf.output(pdf_file)
 
     # Download Link
@@ -101,4 +123,3 @@ if st.button("Submit Test"):
 if st.button("Reset Test"):
     st.session_state.clear()
     st.rerun()
-
